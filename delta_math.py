@@ -43,7 +43,7 @@ def cleanData(minutes):
     
     l = []
     t1 = df['time'][current_ind]
-    l.append(df.loc[current_ind].to_json())
+    l.append(json.loads(df.loc[current_ind].to_json()))
     for j in range(1,len(df)):
         
         t2 = df['time'][j]
@@ -51,7 +51,7 @@ def cleanData(minutes):
         
         count+=1
         #print(t1,t2,diff,current_ind,count)
-        l.append(df.loc[j].to_json())
+        l.append(json.loads(df.loc[j].to_json()))
         if diff > seconds:
             
             current_ind = j
@@ -60,31 +60,68 @@ def cleanData(minutes):
             t1 = df['time'][current_ind]
             getMetrics(l)
             l = []
-            #break
+            break
 
 def unix2read(ts):
-    return datetime.datetime.fromtimestamp(int(ts) / 1000,tz=datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')
+    #.strftime('%Y-%m-%d %H:%M:%S.%f')
+    return datetime.datetime.fromtimestamp(int(ts) / 1000,tz=datetime.timezone.utc)
 
+def addBuySell(i,p,v,s):
+    
+    if p in i:
+        if s == -1:
+            i[p]['sell'] += float(v)
+        elif s == 1:
+            i[p]['buy'] += float(v)
+    else:
+        if s == -1:
+            i[p] = {'sell':float(v),'buy':0}
+        elif s == 1:
+            i[p] = {'sell':0,'buy':float(v)}
+
+    
 def getMetrics(l):
     
     total_volume = 0
+    net_buy_volume = 0
+    net_sell_volume = 0
+    imbalance = {}
     
-    first_value = json.loads(l[0])
-    last_value = json.loads(l[len(l)-1])
+    first_value = l[0]
+    last_value = l[len(l)-1]
     
     start_time = unix2read(first_value['time'])
     end_time = unix2read(last_value['time'])
+    time_diff = end_time - start_time
     
     start_price = first_value['price']
     closing_price = last_value['price']
     
+    max_price = max(l, key=lambda feature: feature['price'])['price']
+    min_price = min(l, key=lambda feature: feature['price'])['price']
+    
+    bar_direction = 'u' if (start_price < closing_price) else 'd'
+    
     for value in l:
-        blob = json.loads(value)
-        total_volume += float(blob['qty'])
         
+        price = str(value['price'])
+        total_volume += float(value['qty'])
         
-
-    print(total_volume)
+        if value['side'] == 1:
+            net_buy_volume += float(value['qty'])
+            addBuySell(imbalance,price,value['qty'],1)
+        elif value['side'] == -1:
+            net_sell_volume += float(value['qty'])
+            addBuySell(imbalance,price,value['qty'],-1)
+    
+    net_delta = "{:.2f}".format(net_sell_volume - net_buy_volume)     
+    total_volume = "{:.2f}".format(total_volume)
+    
+    print(total_volume,net_delta,bar_direction,min_price,max_price,time_diff.total_seconds())
+        
+    for k in sorted(imbalance.keys(),reverse=True):
+        print(k,imbalance[k])
+    
     
 if __name__ == "__main__":
     
