@@ -86,13 +86,14 @@ def getMetrics(l):
     net_buy_volume = 0
     net_sell_volume = 0
     imbalance = {}
+    market_depth = []
     
     first_value = l[0]
     last_value = l[len(l)-1]
     
     start_time = unix2read(first_value['time'])
     end_time = unix2read(last_value['time'])
-    time_diff = end_time - start_time
+    time_diff = (end_time - start_time).total_seconds()
     
     start_price = first_value['price']
     closing_price = last_value['price']
@@ -114,14 +115,54 @@ def getMetrics(l):
             net_sell_volume += float(value['qty'])
             addBuySell(imbalance,price,value['qty'],-1)
     
+    
+    volume_sec = "{:.2f}".format(total_volume / time_diff)
     net_delta = "{:.2f}".format(net_sell_volume - net_buy_volume)     
     total_volume = "{:.2f}".format(total_volume)
     
-    print(total_volume,net_delta,bar_direction,min_price,max_price,time_diff.total_seconds())
-        
-    for k in sorted(imbalance.keys(),reverse=True):
-        print(k,imbalance[k])
+    print(total_volume,net_delta,bar_direction,volume_sec,min_price,max_price,time_diff)
     
+    
+    for k in sorted(imbalance.keys(),reverse=False):
+        
+        b = imbalance[k]['buy']
+        s = imbalance[k]['sell']
+        
+        market_depth.append({
+            'p':k
+            ,'s':s
+            ,'b':b
+        });
+     
+    low_wick_bid_ask=market_depth[0]
+    high_wick_bid_ask=market_depth[len(market_depth)-1]
+    
+    print('HighWick',high_wick_bid_ask)
+    print('LowWick',low_wick_bid_ask)
+    
+    
+    buy_imb = 0
+    sell_imb = 0
+    
+    i = 0
+    p1 = market_depth[i]['s']
+    for j in range(1,len(market_depth)):
+        
+        p2 = market_depth[j]['b']
+        
+        #print(p1,p2)
+        if p1 > p2:
+            if p2 != 0:
+                print(market_depth[i]['p'],'sell',p1 / p2,p1,p2)
+        else:
+            if p1 != 0:
+                print(market_depth[j]['p'],'buy',p2 / p1,p1,p2)
+        
+        
+        i+=1
+        p1 = market_depth[i]['s']
+        
+        
     
 if __name__ == "__main__":
     
