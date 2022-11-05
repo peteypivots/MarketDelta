@@ -2,8 +2,9 @@ import argparse
 import pandas as pd
 import numpy as np
 import datetime
-
 import json
+import sys
+import os
 
 def init():
     parser = argparse.ArgumentParser(
@@ -33,34 +34,43 @@ def cleanData(minutes):
     df['side'] = np.where(df['side']==True,1, -1)
     
     print(df)
-    #df1 = df.groupby(pd.Grouper(key='time', freq= str(minutes) +'m'))
-    
-    #windows = (df.time.diff().apply(lambda x: x.total_seconds()) >= 1)
     
     current_ind = 0
     total_count=0
     count = 0
     
     l = []
-    t1 = df['time'][current_ind]
-    l.append(json.loads(df.loc[current_ind].to_json()))
-    for j in range(1,len(df)):
+
+    if os.path.exists('output.csv'):
+        os.remove('output.csv')
+    
+    with open('output.csv', 'a') as f:
+
+        header = "start_time,end_time,open_price,closing_price,total_volume,bar_direction,cum_delta,bar_duration,volume_sec,high_wick_bid_ask,low_wick_bid_ask,bid_imb,ask_imb\n"
+        f.write(header)
         
-        t2 = df['time'][j]
-        diff = (t2 - t1).total_seconds()
+        t1 = df['time'][current_ind]
+        l.append(json.loads(df.loc[current_ind].to_json()))
+        for j in range(1,len(df)):
         
-        count+=1
-        #print(t1,t2,diff,current_ind,count)
-        l.append(json.loads(df.loc[j].to_json()))
-        if diff > seconds:
+            t2 = df['time'][j]
+            diff = (t2 - t1).total_seconds()
+        
+            count+=1
+            #print(t1,t2,diff,current_ind,count)
+            l.append(json.loads(df.loc[j].to_json()))
+            if diff > seconds:
             
-            current_ind = j
-            count=0
+                current_ind = j
+                count=0
             
-            t1 = df['time'][current_ind]
-            getMetrics(l)
-            l = []
-            break
+                t1 = df['time'][current_ind]
+                o = getMetrics(l)
+                f.write(o)   
+
+                l = []
+
+    f.close()          
 
 def unix2read(ts):
     #.strftime('%Y-%m-%d %H:%M:%S.%f')
@@ -95,13 +105,13 @@ def getMetrics(l):
     end_time = unix2read(last_value['time'])
     time_diff = (end_time - start_time).total_seconds()
     
-    start_price = first_value['price']
+    open_price = first_value['price']
     closing_price = last_value['price']
     
     max_price = max(l, key=lambda feature: feature['price'])['price']
     min_price = min(l, key=lambda feature: feature['price'])['price']
     
-    bar_direction = 'u' if (start_price < closing_price) else 'd'
+    bar_direction = 'u' if (open_price < closing_price) else 'd'
     
     for value in l:
         
@@ -120,9 +130,6 @@ def getMetrics(l):
     net_delta = "{:.2f}".format(net_sell_volume - net_buy_volume)     
     total_volume = "{:.2f}".format(total_volume)
     
-    print(total_volume,net_delta,bar_direction,volume_sec,min_price,max_price,time_diff)
-    
-    
     for k in sorted(imbalance.keys(),reverse=False):
         
         b = imbalance[k]['buy']
@@ -137,31 +144,63 @@ def getMetrics(l):
     low_wick_bid_ask=market_depth[0]
     high_wick_bid_ask=market_depth[len(market_depth)-1]
     
-    print('HighWick',high_wick_bid_ask)
-    print('LowWick',low_wick_bid_ask)
-    
-    
+
     buy_imb = 0
     sell_imb = 0
-    
+    threshold = 100 # size
+
     i = 0
     p1 = market_depth[i]['s']
     for j in range(1,len(market_depth)):
         
         p2 = market_depth[j]['b']
         
-        #print(p1,p2)
         if p1 > p2:
             if p2 != 0:
-                print(market_depth[i]['p'],'sell',p1 / p2,p1,p2)
+                
+                d=(p1 / p2)
+                if d > threshold:
+                    sell_imb+=1
+                    #print(market_depth[i]['p'],'sell',"{:.2f}".format(d),"{:.2f}".format(p1),"{:.2f}".format(p2))
         else:
             if p1 != 0:
-                print(market_depth[j]['p'],'buy',p2 / p1,p1,p2)
-        
-        
+
+                d=(p2 / p1)
+                if d > threshold:
+                    buy_imb+=1    
+                    #print(market_depth[j]['p'],'buy',"{:.2f}".format(d),"{:.2f}".format(p1),"{:.2f}".format(p2))
+
         i+=1
         p1 = market_depth[i]['s']
-        
+
+    print(total_volume,net_delta,bar_direction,volume_sec,min_price,max_price,time_diff)    
+    print('HighWick',high_wick_bid_ask)
+    print('LowWick',low_wick_bid_ask)
+
+    high_wick = str(high_wick_bid_ask['s']) + 'x'+ str(high_wick_bid_ask['b'])
+    low_wick = str(low_wick_bid_ask['s']) + 'x'+ str(low_wick_bid_ask['b'])
+
+    print('BuyImb',buy_imb,'SellImb',sell_imb)
+    print('************************')
+    
+    output =""
+    output += start_time.strftime('%Y-%m-%d %H:%M:%S.%f') + ","
+    output += end_time.strftime('%Y-%m-%d %H:%M:%S.%f') + ","
+    output += str(open_price) + ","
+    output += str(closing_price) + ","
+    output += str(total_volume) + ","
+    output += bar_direction + ","
+    output += str(net_delta) + ","
+    output += str(time_diff) + ","
+    output += str(volume_sec) + ","
+    output += str(high_wick) + ","
+    output += str(buy_imb) + ","
+    output += str(sell_imb) + "\n"
+
+    return output
+
+
+
         
     
 if __name__ == "__main__":
