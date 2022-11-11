@@ -134,7 +134,7 @@ def getMetrics(l):
         last_mid_price = (max_price + min_price)/2
     else:
         mid_price = (max_price + min_price)/2
-        log_return = (np.log(mid_price) - np.log(last_mid_price)) * 100
+        log_return = abs(np.log(mid_price) - np.log(last_mid_price)) * 100
         log_return = "{:.5f}".format(log_return)
         last_mid_price = mid_price
     
