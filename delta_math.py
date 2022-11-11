@@ -134,7 +134,7 @@ def getMetrics(l):
         last_mid_price = (max_price + min_price)/2
     else:
         mid_price = (max_price + min_price)/2
-        log_return = np.log(mid_price) - np.log(last_mid_price)
+        log_return = (np.log(mid_price) - np.log(last_mid_price)) * 100
         log_return = "{:.5f}".format(log_return)
         last_mid_price = mid_price
     
@@ -217,9 +217,6 @@ def getMetrics(l):
     
     output =""
     
-    if len(net_delta_hist) > 3:
-        del net_delta_hist[0]
-    
     if len(net_delta_hist) == 3:
         
         
@@ -233,6 +230,7 @@ def getMetrics(l):
         output += str(time_diff) + ","
         output += str(volume_sec) + ","
         output += str(high_wick) + ","
+        output += str(low_wick) + ","
         output += str(buy_imb) + ","
         output += str(sell_imb) + ","
         output += str(sd) + ","
@@ -242,6 +240,7 @@ def getMetrics(l):
         output += net_delta_hist[2] + ","
         output += log_return + "\n"
         
+        del net_delta_hist[0]
     
     return output
 
