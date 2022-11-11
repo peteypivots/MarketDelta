@@ -1,24 +1,34 @@
 import argparse
+import functools
 import pandas as pd
 import numpy as np
 import datetime
 import json
 import sys
 import os
+import math
 
+last_mid_price = 0
+    
 def init():
     parser = argparse.ArgumentParser(
         prog = __file__,
         description = 'delta math')
         
     parser.add_argument('-f','--filename')
-
+    parser.add_argument('-o','--output',nargs='?', const=1, type=str, default=None)
+    
     args = parser.parse_args()
     global dfile
-    dfile = args.filename 
+    dfile = args.filename
+    global dout
+    dout = args.output
+    global net_delta_hist
+    net_delta_hist = []
+    
     print('file: ',dfile)
-    #return dfile
-
+    print('output: ',dout)
+    
 def parseFile():
     header = ['tid','price','qty','quoteQty','time','side','bmatch']
     global df
@@ -45,9 +55,10 @@ def cleanData(minutes):
         os.remove('output.csv')
     
     with open('output.csv', 'a') as f:
-
-        header = "start_time,end_time,open_price,closing_price,total_volume,bar_direction,cum_delta,bar_duration,volume_sec,high_wick_bid_ask,low_wick_bid_ask,bid_imb,ask_imb\n"
-        f.write(header)
+        
+        if dout != None:
+            header = "start_time,end_time,open_price,closing_price,total_volume,bar_direction,cum_delta,bar_duration,volume_sec,high_wick_bid_ask,low_wick_bid_ask,bid_imb,ask_imb,price_sd,price_mean,net_delta_t3,net_delta_t2,net_delta_t1,log_return_p1\n"
+            f.write(header)
         
         t1 = df['time'][current_ind]
         l.append(json.loads(df.loc[current_ind].to_json()))
@@ -66,7 +77,9 @@ def cleanData(minutes):
             
                 t1 = df['time'][current_ind]
                 o = getMetrics(l)
-                f.write(o)   
+                
+                if dout != None and o != "":
+                    f.write(o)   
 
                 l = []
 
@@ -108,8 +121,22 @@ def getMetrics(l):
     open_price = first_value['price']
     closing_price = last_value['price']
     
+    mean_price = getMean(l)
+    sd = getStd(l)
+    
     max_price = max(l, key=lambda feature: feature['price'])['price']
     min_price = min(l, key=lambda feature: feature['price'])['price']
+    
+    
+    log_return = 0
+    global last_mid_price
+    if last_mid_price == 0:
+        last_mid_price = (max_price + min_price)/2
+    else:
+        mid_price = (max_price + min_price)/2
+        log_return = np.log(mid_price) - np.log(last_mid_price)
+        log_return = "{:.5f}".format(log_return)
+        last_mid_price = mid_price
     
     bar_direction = 'u' if (open_price < closing_price) else 'd'
     
@@ -127,8 +154,13 @@ def getMetrics(l):
     
     
     volume_sec = "{:.2f}".format(total_volume / time_diff)
-    net_delta = "{:.2f}".format(net_sell_volume - net_buy_volume)     
+    net_delta = "{:.2f}".format(net_sell_volume - net_buy_volume)
+    
+    net_delta_hist.append(net_delta)
+
     total_volume = "{:.2f}".format(total_volume)
+    mean_price = "{:.2f}".format(mean_price)
+    sd = "{:.2f}".format(sd)
     
     for k in sorted(imbalance.keys(),reverse=False):
         
@@ -184,24 +216,55 @@ def getMetrics(l):
     print('************************')
     
     output =""
-    output += start_time.strftime('%Y-%m-%d %H:%M:%S.%f') + ","
-    output += end_time.strftime('%Y-%m-%d %H:%M:%S.%f') + ","
-    output += str(open_price) + ","
-    output += str(closing_price) + ","
-    output += str(total_volume) + ","
-    output += bar_direction + ","
-    output += str(net_delta) + ","
-    output += str(time_diff) + ","
-    output += str(volume_sec) + ","
-    output += str(high_wick) + ","
-    output += str(buy_imb) + ","
-    output += str(sell_imb) + "\n"
-
+    
+    if len(net_delta_hist) > 3:
+        del net_delta_hist[0]
+    
+    if len(net_delta_hist) == 3:
+        
+        
+        output += start_time.strftime('%Y-%m-%d %H:%M:%S.%f') + ","
+        output += end_time.strftime('%Y-%m-%d %H:%M:%S.%f') + ","
+        output += str(open_price) + ","
+        output += str(closing_price) + ","
+        output += str(total_volume) + ","
+        output += bar_direction + ","
+        output += str(net_delta) + ","
+        output += str(time_diff) + ","
+        output += str(volume_sec) + ","
+        output += str(high_wick) + ","
+        output += str(buy_imb) + ","
+        output += str(sell_imb) + ","
+        output += str(sd) + ","
+        output += str(mean_price) + ","
+        output += net_delta_hist[0] + ","
+        output += net_delta_hist[1] + ","
+        output += net_delta_hist[2] + ","
+        output += log_return + "\n"
+        
+    
     return output
 
-
-
+def getMean(l):
+    mean = 0
+    for v in l:
+        mean += v['price']
         
+    return mean/len(l)
+    
+def getStd(l):
+    
+    sq_diff = 0
+    mean = getMean(l)
+    
+    deviations = [(x['price'] - mean) ** 2 for x in l]
+    variance = sum(deviations) / len(l)
+    std_dev = math.sqrt(variance)
+    
+    return std_dev
+    
+    
+    
     
 if __name__ == "__main__":
     
