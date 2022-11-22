@@ -138,7 +138,7 @@ def getMetrics(l):
         log_return = "{:.5f}".format(log_return)
         last_mid_price = mid_price
     
-    bar_direction = 'u' if (open_price < closing_price) else 'd'
+    bar_direction = 1 if (open_price < closing_price) else -1
     
     for value in l:
         
@@ -225,7 +225,7 @@ def getMetrics(l):
         output += str(open_price) + ","
         output += str(closing_price) + ","
         output += str(total_volume) + ","
-        output += bar_direction + ","
+        output += str(bar_direction) + ","
         output += str(net_delta) + ","
         output += str(time_diff) + ","
         output += str(volume_sec) + ","
@@ -269,7 +269,7 @@ if __name__ == "__main__":
     
     init()
     parseFile()
-    cleanData(1)
+    cleanData(5)
     
     
     
