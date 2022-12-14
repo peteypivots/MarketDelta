@@ -231,8 +231,8 @@ def getMetrics(l):
         output += str(volume_sec) + ","
         output += str(high_wick) + ","
         output += str(low_wick) + ","
-        output += str(buy_imb) + ","
-        output += str(sell_imb) + ","
+        output += str(sell_imb) + ","#bid_imb
+        output += str(buy_imb) + ","#ask_imb
         output += str(sd) + ","
         output += str(mean_price) + ","
         output += net_delta_hist[0] + ","
