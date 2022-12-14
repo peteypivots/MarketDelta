@@ -128,5 +128,6 @@ if __name__ == "__main__":
     
     load_model()
     loop = asyncio.get_event_loop()
+    asyncio.set_event_loop(loop)
     loop.run_until_complete(handle_notification())
     
