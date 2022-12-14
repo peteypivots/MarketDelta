@@ -66,3 +66,5 @@ model.fit(train_x, train_y, epochs=1000, batch_size=10)
 
 _, accuracy = model.evaluate(test_x, test_y)
 print('Accuracy: %.2f' % (accuracy*100))
+
+model.save('final_seq_nn.sav')
